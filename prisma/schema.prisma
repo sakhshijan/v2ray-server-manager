@@ -1,0 +1,99 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex", "extendedWhereUnique"]
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  username    String    @unique
+  password    String
+  secret      String    @unique @default(uuid())
+  isAdmin     Boolean   @default(false)
+  permissions String[]  @default([])
+  services    Service[]
+
+  subset   User?   @relation("Subset", fields: [subsetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user     User[]  @relation("Subset")
+  subsetId String? @map("subset_id") @db.ObjectId
+
+  @@fulltext([username, secret])
+  @@map("users")
+}
+
+model Service {
+  id       String    @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  start    DateTime  @default(now())
+  expire   DateTime
+  end      DateTime?
+  download BigInt    @default(0)
+  upload   BigInt    @default(0)
+  total    BigInt
+  server   Server    @relation(fields: [serverId], references: [id])
+  serverId String    @map("server_id") @db.ObjectId
+  inbound  Int
+  isActive Boolean   @default(true)
+  user     User      @relation(fields: [userId], references: [id])
+  userId   String    @map("user_id") @db.ObjectId
+
+  @@index([isActive(sort: Desc), serverId, userId])
+  @@map("services")
+}
+
+model Server {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  location    Location
+  ip          String      @unique
+  domain      String?
+  port        Int
+  path        String
+  username    String
+  password    String
+  ipVersion   IpVersion   @map("ip_version")
+  services    Service[]
+  isActive    Boolean     @default(true) @map("is_active")
+  accessToken String?     @map("access_tokne")
+  statistic   Statistic[] @relation("statistic")
+
+  @@map("servers")
+}
+
+model Statistic {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  records   Record[]
+  server    Server   @relation("statistic", fields: [serverId], references: [id], onDelete: Cascade)
+  serverId  String   @db.ObjectId
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([serverId, createdAt, updatedAt])
+  @@map("statistics")
+}
+
+type Record {
+  downloads BigInt
+  uploads   BigInt
+  createdAt DateTime @default(now()) @map("created_at")
+}
+
+type Location {
+  city        String
+  region      String
+  countryName String @map("country_name")
+  countryCode String @map("country_code")
+  timezone    String
+}
+
+enum IpVersion {
+  IPv6
+  IPv4
+}
